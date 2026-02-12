@@ -138,16 +138,6 @@ let isFn = (a) => typeof a === "function";
                   text-align: left;
                   margin-bottom: 1cm;
                 }
-                body::before {
-                  content: ${subheaderLines};
-                  white-space: pre-line;
-                  display: block;
-                  font-size: 12pt;
-                  font-weight: normal;
-                  font-family: sans-serif;
-                  text-align: left;
-                  margin-bottom: 1cm;
-                }
               }
             `
             );
