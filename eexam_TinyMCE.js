@@ -16,6 +16,9 @@ let isFn = (a) => typeof a === "function";
   const disableMenubar = true;
   let patched = false;
 
+  // Random marker per session so it can't be guessed
+  const PASTE_TOKEN = "__mce_internal_" + Math.random().toString(36).slice(2) + "__";
+
   function patchTinyMCE(tinymce) {
     if (patched || !tinymce || !isFn(tinymce.init)) return;
 
@@ -27,32 +30,40 @@ let isFn = (a) => typeof a === "function";
         toolbar,
         font_size_formats: "11pt 12pt 13pt 14pt",
         custom_colors: false,
+        paste_preprocess: (plugin, args) => {
+          // Check for our secret token in the pasted content
+          if (!args.content.includes(PASTE_TOKEN)) {
+            args.content = "";
+            tinymce.activeEditor?.notificationManager.open({
+              text: "Einfügen von externen Inhalten ist nicht erlaubt.",
+              type: "warning",
+              timeout: 3000,
+            });
+          } else {
+            // Remove the token before inserting
+            args.content = args.content.replaceAll(PASTE_TOKEN, "");
+          }
+        },
         ...(disableQuickbars && { quickbars_selection_toolbar: "" }),
         ...(disableMenubar && { menubar: false }),
         setup: (editor) => {
-          let internalCopy = false;
+          // Inject token into clipboard on copy/cut
+          editor.on("copy cut", (e) => {
+            const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+            if (!clipboardData) return;
 
-          // Flag internal copy/cut
-          editor.on("copy cut", () => {
-            internalCopy = true;
+            const selection = editor.selection.getContent({ format: "html" });
+            const text = editor.selection.getContent({ format: "text" });
+
+            clipboardData.setData(
+              "text/html",
+              `<span style="display:none">${PASTE_TOKEN}</span>${selection}`
+            );
+            clipboardData.setData("text/plain", PASTE_TOKEN + text);
+
+            e.preventDefault();
           });
 
-          // Block external paste
-          editor.on("paste", (e) => {
-            if (!internalCopy) {
-              e.preventDefault();
-              e.stopPropagation();
-              editor.notificationManager.open({
-                text: "Einfügen von externen Inhalten ist nicht erlaubt.",
-                type: "warning",
-                timeout: 3000,
-              });
-              return false;
-            }
-            internalCopy = false;
-          });
-
-          // Call original setup if one existed
           if (config && isFn(config.setup)) {
             config.setup(editor);
           }
