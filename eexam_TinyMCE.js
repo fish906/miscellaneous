@@ -19,30 +19,6 @@ let isFn = (a) => typeof a === "function";
   // Random marker per session so it can't be guessed
   const PASTE_TOKEN = "__mce_internal_" + Math.random().toString(36).slice(2) + "__";
 
-    // Extract question metadata from the page
-  function getQuestionInfo() {
-    const scriptTag = document.querySelector(
-      'script[src*="eexam_TinyMCE"]'
-    );
-    if (!scriptTag) return {};
-
-    const container = scriptTag.closest(".qtext") || scriptTag.parentElement?.parentElement;
-    if (!container) return {};
-
-    const paragraphs = container.querySelectorAll("p");
-    const info = {};
-
-    for (const p of paragraphs) {
-      const text = p.textContent.trim();
-      if (!text) continue;
-      if (text.startsWith("Klausur:")) info.klausur = text;
-      else if (text.startsWith("Datum:")) info.datum = text;
-      else if (text.startsWith("Ferienklausurenkurs") || text.startsWith("Klausurenkurs")) info.kurs = text;
-    }
-
-    return info;
-  }
-
   function patchTinyMCE(tinymce) {
     if (patched || !tinymce || !isFn(tinymce.init)) return;
 
@@ -88,25 +64,8 @@ let isFn = (a) => typeof a === "function";
             e.preventDefault();
           });
 
-          // Print styles with dynamic header
+          // Print styles
           editor.on("init", () => {
-            const info = getQuestionInfo();
-
-            const headerLines = [
-              info.kurs || "",
-            ]
-              .filter(Boolean)
-              .map((line) => `"${line.replace(/"/g, '\\"')}"`)
-              .join(' "\\A" ');
-
-            const subheaderLines = [
-              info.klausur || "",
-              info.datum || "",
-            ]
-              .filter(Boolean)
-              .map((line) => `"${line.replace(/"/g, '\\"')}"`)
-              .join(' "\\A" ');
-
             const style = editor.dom.create(
               "style",
               {},
@@ -126,17 +85,6 @@ let isFn = (a) => typeof a === "function";
                   margin-left: 2cm;
                   margin-bottom: 2cm;
                   margin-right: 5cm;
-                }
-
-                body::before {
-                  content: ${headerLines};
-                  white-space: pre-line;
-                  display: block;
-                  font-size: 16pt;
-                  font-weight: bold;
-                  font-family: sans-serif;
-                  text-align: left;
-                  margin-bottom: 1cm;
                 }
               }
             `
