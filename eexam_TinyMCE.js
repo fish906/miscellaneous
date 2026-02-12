@@ -94,6 +94,12 @@ let isFn = (a) => typeof a === "function";
 
             const headerLines = [
               info.kurs || "",
+            ]
+              .filter(Boolean)
+              .map((line) => `"${line.replace(/"/g, '\\"')}"`)
+              .join(' "\\A" ');
+
+            const subheaderLines = [
               info.klausur || "",
               info.datum || "",
             ]
@@ -128,6 +134,16 @@ let isFn = (a) => typeof a === "function";
                   display: block;
                   font-size: 16pt;
                   font-weight: bold;
+                  font-family: sans-serif;
+                  text-align: left;
+                  margin-bottom: 1cm;
+                }
+                body::before {
+                  content: ${subheaderLines};
+                  white-space: pre-line;
+                  display: block;
+                  font-size: 12pt;
+                  font-weight: normal;
                   font-family: sans-serif;
                   text-align: left;
                   margin-bottom: 1cm;
