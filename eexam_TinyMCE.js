@@ -16,8 +16,8 @@ let isFn = (a) => typeof a === "function";
   const disableMenubar = true;
   let patched = false;
 
-  // Random marker per session so it can't be guessed
-  const PASTE_TOKEN = "__mce_internal_" + Math.random().toString(36).slice(2) + "__";
+  const PASTE_TOKEN =
+    "__mce_internal_" + Math.random().toString(36).slice(2) + "__";
 
   function patchTinyMCE(tinymce) {
     if (patched || !tinymce || !isFn(tinymce.init)) return;
@@ -30,38 +30,91 @@ let isFn = (a) => typeof a === "function";
         toolbar,
         font_size_formats: "11pt 12pt 13pt 14pt",
         custom_colors: false,
-        paste_preprocess: (plugin, args) => {
-          // Check for our secret token in the pasted content
-          if (!args.content.includes(PASTE_TOKEN)) {
-            args.content = "";
-            tinymce.activeEditor?.notificationManager.open({
-              text: "Einfügen von externen Inhalten ist nicht erlaubt.",
-              type: "warning",
-              timeout: 3000,
-            });
-          } else {
-            // Remove the token before inserting
-            args.content = args.content.replaceAll(PASTE_TOKEN, "");
-          }
-        },
+        paste_block_drop: true,
         ...(disableQuickbars && { quickbars_selection_toolbar: "" }),
         ...(disableMenubar && { menubar: false }),
         setup: (editor) => {
           // Inject token into clipboard on copy/cut
           editor.on("copy cut", (e) => {
-            const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+            const clipboardData =
+              e.clipboardData ||
+              (e.originalEvent && e.originalEvent.clipboardData);
             if (!clipboardData) return;
 
-            const selection = editor.selection.getContent({ format: "html" });
+            const html = editor.selection.getContent({ format: "html" });
             const text = editor.selection.getContent({ format: "text" });
 
             clipboardData.setData(
               "text/html",
-              `<span style="display:none">${PASTE_TOKEN}</span>${selection}`
+              `<span data-mce-token="${PASTE_TOKEN}" style="display:none">${PASTE_TOKEN}</span>${html}`
             );
             clipboardData.setData("text/plain", PASTE_TOKEN + text);
-
             e.preventDefault();
+          });
+
+          // Block paste at every level
+          function blockExternalPaste(e) {
+            const clipboardData =
+              e.clipboardData ||
+              (e.originalEvent && e.originalEvent.clipboardData) ||
+              window.clipboardData;
+
+            let allowed = false;
+
+            if (clipboardData) {
+              const html = clipboardData.getData("text/html") || "";
+              const text = clipboardData.getData("text/plain") || "";
+              if (html.includes(PASTE_TOKEN) || text.includes(PASTE_TOKEN)) {
+                allowed = true;
+              }
+            }
+
+            if (!allowed) {
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              editor.notificationManager.open({
+                text: "Einfügen von externen Inhalten ist nicht erlaubt.",
+                type: "warning",
+                timeout: 3000,
+              });
+              return false;
+            }
+          }
+
+          // Intercept paste on the editor's iframe document and body
+          editor.on("init", () => {
+            const iframeDoc = editor.getDoc();
+            const iframeBody = editor.getBody();
+
+            if (iframeDoc) {
+              iframeDoc.addEventListener("paste", blockExternalPaste, true);
+            }
+            if (iframeBody) {
+              iframeBody.addEventListener("paste", blockExternalPaste, true);
+            }
+          });
+
+          // Also intercept via TinyMCE's own paste events
+          editor.on("paste", blockExternalPaste);
+          editor.on("PastePreProcess", (args) => {
+            if (!args.content.includes(PASTE_TOKEN)) {
+              args.content = "";
+              args.preventDefault?.();
+            } else {
+              args.content = args.content.replaceAll(PASTE_TOKEN, "");
+              // Remove the hidden token span
+              args.content = args.content.replace(
+                /<span[^>]*data-mce-token="[^"]*"[^>]*>.*?<\/span>/gi,
+                ""
+              );
+            }
+          });
+
+          // Block drag & drop from external sources
+          editor.on("drop dragover", (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
           });
 
           if (config && isFn(config.setup)) {
@@ -102,7 +155,9 @@ let isFn = (a) => typeof a === "function";
         if (window.tinymce && isFn(window.tinymce.init)) {
           patchTinyMCE(window.tinymce);
         } else {
-          console.error("TinyMCE script loaded but window.tinymce.init was not found.");
+          console.error(
+            "TinyMCE script loaded but window.tinymce.init was not found."
+          );
         }
       },
       { once: true }
@@ -111,7 +166,10 @@ let isFn = (a) => typeof a === "function";
     script.addEventListener(
       "error",
       () => {
-        console.error("Failed to load TinyMCE script:", script.src || script.getAttribute("src"));
+        console.error(
+          "Failed to load TinyMCE script:",
+          script.src || script.getAttribute("src")
+        );
       },
       { once: true }
     );
