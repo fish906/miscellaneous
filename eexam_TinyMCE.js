@@ -64,6 +64,44 @@ let isFn = (a) => typeof a === "function";
             e.preventDefault();
           });
 
+          // Print styles
+          editor.on("init", () => {
+            const style = editor.dom.create(
+              "style",
+              {},
+              `
+              @media print {
+                body {
+                  font-family: sans-serif;
+                  font-size: 12pt;
+                  line-height: 1.5;
+                  text-align: justify;
+                  margin: 0;
+                  padding: 0;
+                }
+
+                @page {
+                  margin-top: 2cm;
+                  margin-left: 2cm;
+                  margin-bottom: 2cm;
+                  margin-right: 5cm;
+                }
+
+                body::before {
+                  content: "Klausurenkurs \\2013  Examitage";
+                  display: block;
+                  font-size: 16pt;
+                  font-weight: bold;
+                  font-family: sans-serif;
+                  text-align: left;
+                  margin-bottom: 1cm;
+                }
+              }
+            `
+            );
+            editor.getDoc().head.appendChild(style);
+          });
+
           if (config && isFn(config.setup)) {
             config.setup(editor);
           }
