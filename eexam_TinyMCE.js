@@ -19,6 +19,30 @@ let isFn = (a) => typeof a === "function";
   // Random marker per session so it can't be guessed
   const PASTE_TOKEN = "__mce_internal_" + Math.random().toString(36).slice(2) + "__";
 
+    // Extract question metadata from the page
+  function getQuestionInfo() {
+    const scriptTag = document.querySelector(
+      'script[src*="eexam_TinyMCE"]'
+    );
+    if (!scriptTag) return {};
+
+    const container = scriptTag.closest(".qtext") || scriptTag.parentElement?.parentElement;
+    if (!container) return {};
+
+    const paragraphs = container.querySelectorAll("p");
+    const info = {};
+
+    for (const p of paragraphs) {
+      const text = p.textContent.trim();
+      if (!text) continue;
+      if (text.startsWith("Klausur:")) info.klausur = text;
+      else if (text.startsWith("Datum:")) info.datum = text;
+      else if (text.startsWith("Ferienklausurenkurs") || text.startsWith("Klausurenkurs")) info.kurs = text;
+    }
+
+    return info;
+  }
+
   function patchTinyMCE(tinymce) {
     if (patched || !tinymce || !isFn(tinymce.init)) return;
 
@@ -64,8 +88,19 @@ let isFn = (a) => typeof a === "function";
             e.preventDefault();
           });
 
-          // Print styles
+          // Print styles with dynamic header
           editor.on("init", () => {
+            const info = getQuestionInfo();
+
+            const headerLines = [
+              info.kurs || "",
+              info.klausur || "",
+              info.datum || "",
+            ]
+              .filter(Boolean)
+              .map((line) => `"${line.replace(/"/g, '\\"')}"`)
+              .join(' "\\A" ');
+
             const style = editor.dom.create(
               "style",
               {},
@@ -73,7 +108,7 @@ let isFn = (a) => typeof a === "function";
               @media print {
                 body {
                   font-family: sans-serif;
-                  font-size: 12pt;
+                  font-size: 12pt !important;
                   line-height: 1.5 !important;
                   text-align: justify !important;
                   margin: 0;
@@ -88,7 +123,8 @@ let isFn = (a) => typeof a === "function";
                 }
 
                 body::before {
-                  content: "Klausurenkurs \\2013  Examitage";
+                  content: ${headerLines};
+                  white-space: pre-line;
                   display: block;
                   font-size: 16pt;
                   font-weight: bold;
