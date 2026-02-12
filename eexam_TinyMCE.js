@@ -29,6 +29,34 @@ let isFn = (a) => typeof a === "function";
         custom_colors: false,
         ...(disableQuickbars && { quickbars_selection_toolbar: "" }),
         ...(disableMenubar && { menubar: false }),
+        setup: (editor) => {
+          let internalCopy = false;
+
+          // Flag internal copy/cut
+          editor.on("copy cut", () => {
+            internalCopy = true;
+          });
+
+          // Block external paste
+          editor.on("paste", (e) => {
+            if (!internalCopy) {
+              e.preventDefault();
+              e.stopPropagation();
+              editor.notificationManager.open({
+                text: "Einfügen von externen Inhalten ist nicht erlaubt.",
+                type: "warning",
+                timeout: 3000,
+              });
+              return false;
+            }
+            internalCopy = false;
+          });
+
+          // Call original setup if one existed
+          if (config && isFn(config.setup)) {
+            config.setup(editor);
+          }
+        },
       };
       return originalInit.call(this, overrides);
     };
