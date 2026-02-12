@@ -74,8 +74,8 @@ let isFn = (a) => typeof a === "function";
                 body {
                   font-family: sans-serif;
                   font-size: 12pt;
-                  line-height: 1.5;
-                  text-align: justify;
+                  line-height: 1.5 !important;
+                  text-align: justify !important;
                   margin: 0;
                   padding: 0;
                 }
