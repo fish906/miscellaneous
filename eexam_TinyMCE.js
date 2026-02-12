@@ -43,6 +43,32 @@ let isFn = (a) => typeof a === "function";
     return info;
   }
 
+  function buildHeaderHTML(info) {
+    const title = info.kurs || "";
+    const subtitle = info.datum ? `Datum: ${info.datum}` : "";
+    const klausur = info.klausur || "";
+
+    return `
+      <div id="eexam-print-header" style="background-color: #f0f0f0; padding: 5pt; margin-bottom: 10pt; border: 1pt solid #d0d0d0;">
+        <div style="text-align: center; font-size: 16pt; font-weight: bold; font-family: Arial, sans-serif; margin-bottom: 0pt;">
+          ${title}
+        </div>
+        <div style="text-align: center; font-size: 12pt; font-family: Arial, sans-serif; margin-bottom: 12pt;">
+          ${subtitle}
+        </div>
+        <div style="text-align: left; font-size: 10pt; font-family: Arial, sans-serif; margin-bottom: 0pt; line-height: 1.3;">
+          Klausur: ${klausur}
+        </div>
+        <div style="text-align: left; font-size: 10pt; font-family: Arial, sans-serif; margin-bottom: 0pt; line-height: 1.3;">
+          Name: ___________________________
+        </div>
+        <div style="text-align: left; font-size: 10pt; font-family: Arial, sans-serif; margin-bottom: 5pt; line-height: 1.3;">
+          bt-Kennung: ___________________________
+        </div>
+      </div>
+    `;
+  }
+
   function patchTinyMCE(tinymce) {
     if (patched || !tinymce || !isFn(tinymce.init)) return;
 
@@ -122,15 +148,8 @@ let isFn = (a) => typeof a === "function";
                   margin-right: 5cm;
                 }
 
-                body::before {
-                  content: ${headerLines};
-                  white-space: pre-line;
+                #eexam-print-header {
                   display: block;
-                  font-size: 16pt;
-                  font-weight: bold;
-                  font-family: sans-serif;
-                  text-align: left;
-                  margin-bottom: 1cm;
                 }
               }
             `
