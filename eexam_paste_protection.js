@@ -1,20 +1,10 @@
-let isFn = (a) => typeof a === "function";
+let isFn = isFn || ((a) => typeof a === "function");
 
 (function () {
-  const toolbar = [
-    "undo redo",
-    "copy paste cut",
-    "bold italic underline",
-    "fontsize",
-    "alignleft aligncenter alignright alignjustify",
-    "indent outdent",
-    "fullscreen",
-    "print",
-  ].join(" | ");
-
-  const disableQuickbars = true;
-  const disableMenubar = true;
   let patched = false;
+
+  const PASTE_TOKEN =
+    "__mce_internal_" + Math.random().toString(36).slice(2) + "__";
 
   function patchTinyMCE(tinymce) {
     if (patched || !tinymce || !isFn(tinymce.init)) return;
@@ -22,13 +12,44 @@ let isFn = (a) => typeof a === "function";
     const previousInit = tinymce.init;
 
     tinymce.init = function (config) {
+      const originalSetup = config?.setup;
+
       const overrides = {
         ...(config || {}),
-        toolbar,
-        font_size_formats: "11pt 12pt 13pt 14pt",
-        custom_colors: false,
-        ...(disableQuickbars && { quickbars_selection_toolbar: "" }),
-        ...(disableMenubar && { menubar: false }),
+        paste_preprocess: (plugin, args) => {
+          if (!args.content.includes(PASTE_TOKEN)) {
+            args.content = "";
+            tinymce.activeEditor?.notificationManager.open({
+              text: "Einfügen von externen Inhalten ist nicht erlaubt.",
+              type: "warning",
+              timeout: 3000,
+            });
+          } else {
+            args.content = args.content.replaceAll(PASTE_TOKEN, "");
+          }
+        },
+        setup: (editor) => {
+          editor.on("copy cut", (e) => {
+            const clipboardData =
+              e.clipboardData ||
+              (e.originalEvent && e.originalEvent.clipboardData);
+            if (!clipboardData) return;
+
+            const selection = editor.selection.getContent({ format: "html" });
+            const text = editor.selection.getContent({ format: "text" });
+
+            clipboardData.setData(
+              "text/html",
+              `<span style="display:none">${PASTE_TOKEN}</span>${selection}`
+            );
+            clipboardData.setData("text/plain", PASTE_TOKEN + text);
+            e.preventDefault();
+          });
+
+          if (originalSetup && isFn(originalSetup)) {
+            originalSetup(editor);
+          }
+        },
       };
       return previousInit.call(this, overrides);
     };

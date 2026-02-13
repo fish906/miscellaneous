@@ -1,19 +1,6 @@
-let isFn = (a) => typeof a === "function";
+let isFn = isFn || ((a) => typeof a === "function");
 
 (function () {
-  const toolbar = [
-    "undo redo",
-    "copy paste cut",
-    "bold italic underline",
-    "fontsize",
-    "alignleft aligncenter alignright alignjustify",
-    "indent outdent",
-    "fullscreen",
-    "print",
-  ].join(" | ");
-
-  const disableQuickbars = true;
-  const disableMenubar = true;
   let patched = false;
 
   function patchTinyMCE(tinymce) {
@@ -22,13 +9,42 @@ let isFn = (a) => typeof a === "function";
     const previousInit = tinymce.init;
 
     tinymce.init = function (config) {
+      const originalSetup = config?.setup;
+
       const overrides = {
         ...(config || {}),
-        toolbar,
-        font_size_formats: "11pt 12pt 13pt 14pt",
-        custom_colors: false,
-        ...(disableQuickbars && { quickbars_selection_toolbar: "" }),
-        ...(disableMenubar && { menubar: false }),
+        setup: (editor) => {
+          editor.on("init", () => {
+            const style = editor.dom.create(
+              "style",
+              {},
+              `
+              @media print {
+                body {
+                  font-family: sans-serif;
+                  font-size: 12pt !important;
+                  line-height: 1.5 !important;
+                  text-align: justify !important;
+                  margin: 0;
+                  padding: 0;
+                }
+
+                @page {
+                  margin-top: 2cm;
+                  margin-left: 2cm;
+                  margin-bottom: 2cm;
+                  margin-right: 5cm;
+                }
+              }
+            `
+            );
+            editor.getDoc().head.appendChild(style);
+          });
+
+          if (originalSetup && isFn(originalSetup)) {
+            originalSetup(editor);
+          }
+        },
       };
       return previousInit.call(this, overrides);
     };
