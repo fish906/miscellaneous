@@ -1,4 +1,4 @@
-let isFn = (a) => typeof a === "function";
+var isFn = (a) => typeof a === "function";
 
 (function () {
   const toolbar = [

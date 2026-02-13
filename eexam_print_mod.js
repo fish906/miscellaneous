@@ -1,4 +1,4 @@
-let isFn = isFn || ((a) => typeof a === "function");
+var isFn = isFn || ((a) => typeof a === "function");
 
 (function () {
   let patched = false;
