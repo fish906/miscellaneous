@@ -15,7 +15,6 @@ var isFn = isFn || ((a) => typeof a === "function");
         ...(config || {}),
         setup: (editor) => {
           editor.on("init", () => {
-            // Create indicator element on the main page
             const container = editor.getContainer();
             if (!container) return;
 
@@ -31,49 +30,51 @@ var isFn = isFn || ((a) => typeof a === "function");
               border: 1px solid #d0d0d0;
               border-radius: 4px;
               margin-top: 4px;
-              transition: all 0.3s ease;
             `;
-            indicator.textContent = "Nicht gespeichert";
+            indicator.textContent = "";
             container.parentNode.insertBefore(indicator, container.nextSibling);
 
-            let saveTimeout = null;
+            let lastSaveTime = null;
+            let tickInterval = null;
 
-            // Flash green on save
-            function showSaved() {
-              indicator.textContent = "Gespeichert";
-              indicator.style.color = "#2e7d32";
-              indicator.style.background = "#e8f5e9";
-              indicator.style.borderColor = "#a5d6a7";
+            function formatTimeAgo(seconds) {
+              if (seconds < 5) return "Gerade eben gespeichert";
+              if (seconds < 60) return `Zuletzt gespeichert vor ${seconds} Sekunden`;
+              const minutes = Math.floor(seconds / 60);
+              if (minutes === 1) return "Zuletzt gespeichert vor 1 Minute";
+              return `Zuletzt gespeichert vor ${minutes} Minuten`;
+            }
 
-              if (saveTimeout) clearTimeout(saveTimeout);
-              saveTimeout = setTimeout(() => {
-                indicator.textContent = "Gespeichert";
+            function updateIndicator() {
+              if (!lastSaveTime) return;
+
+              const seconds = Math.floor((Date.now() - lastSaveTime) / 1000);
+              indicator.textContent = formatTimeAgo(seconds);
+
+              // Color shifts from green to neutral over time
+              if (seconds < 10) {
+                indicator.style.color = "#2e7d32";
+                indicator.style.background = "#e8f5e9";
+                indicator.style.borderColor = "#a5d6a7";
+              } else {
                 indicator.style.color = "#666";
                 indicator.style.background = "#f0f0f0";
                 indicator.style.borderColor = "#d0d0d0";
-              }, 3000);
+              }
             }
 
-            // Show unsaved on content change
-            function showUnsaved() {
-              indicator.textContent = "Nicht gespeichert";
-              indicator.style.color = "#c62828";
-              indicator.style.background = "#ffebee";
-              indicator.style.borderColor = "#ef9a9a";
+            function showSaved() {
+              lastSaveTime = Date.now();
+              updateIndicator();
 
-              if (saveTimeout) clearTimeout(saveTimeout);
+              if (!tickInterval) {
+                tickInterval = setInterval(updateIndicator, 5000);
+              }
             }
 
-            // Listen for content changes
-            editor.on("input change keyup", () => {
-              showUnsaved();
-            });
-
-            // Listen for Moodle autosave
-            // Moodle triggers form submission events on autosave
+            // Listen for Moodle autosave DOM changes
             const form = container.closest("form");
             if (form) {
-              // MutationObserver to watch for Moodle's autosave status
               const formObserver = new MutationObserver(() => {
                 const autosaveMsg = form.querySelector(
                   ".autosave-status, .mod_quiz-autosave-status, [data-region='autosave-status']"
@@ -89,7 +90,7 @@ var isFn = isFn || ((a) => typeof a === "function");
               });
             }
 
-            // Also intercept XMLHttpRequest to detect AJAX autosaves
+            // Intercept XMLHttpRequest
             const originalXHRSend = XMLHttpRequest.prototype.send;
             XMLHttpRequest.prototype.send = function () {
               this.addEventListener("load", function () {
@@ -106,7 +107,7 @@ var isFn = isFn || ((a) => typeof a === "function");
               return originalXHRSend.apply(this, arguments);
             };
 
-            // Intercept fetch for modern Moodle
+            // Intercept fetch
             const originalFetch = window.fetch;
             window.fetch = function () {
               const promise = originalFetch.apply(this, arguments);
