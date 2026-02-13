@@ -14,79 +14,66 @@ var isFn = isFn || ((a) => typeof a === "function");
       const overrides = {
         ...(config || {}),
         setup: (editor) => {
-          let lastSaveTime = null;
-          let isOffline = !navigator.onLine;
-
-          const FRESH_THRESHOLD = 30000;
-          const CHECK_INTERVAL = 5000;
-
-          editor.ui.registry.addButton("autosave_indicator", {
-            text: "\u25CF",
-            tooltip: "Speicherstatus",
-            onAction: () => {},
-          });
-
-          function getButtonElement() {
-            const container = editor.getContainer();
-            if (!container) return null;
-            const buttons = container.querySelectorAll("button.tox-tbtn");
-            for (const btn of buttons) {
-              if (btn.textContent.trim() === "\u25CF") return btn;
-            }
-            return null;
-          }
-
-          function updateIndicator() {
-            const btn = getButtonElement();
-            if (!btn) return;
-
-            let color;
-            let tooltip;
-
-            if (isOffline) {
-              color = "#c62828";
-              tooltip = "Keine Internetverbindung";
-            } else if (
-              lastSaveTime &&
-              Date.now() - lastSaveTime <= FRESH_THRESHOLD
-            ) {
-              color = "#2e7d32";
-              tooltip = "Gespeichert";
-            } else {
-              color = "#f9a825";
-              tooltip = lastSaveTime
-                ? "Letzte Speicherung vor mehr als 30 Sekunden"
-                : "Noch nicht gespeichert";
-            }
-
-            btn.style.color = color;
-            btn.style.fontSize = "18px";
-            btn.title = tooltip;
-          }
-
-          function showSaved() {
-            lastSaveTime = Date.now();
-            updateIndicator();
-          }
-
           editor.on("init", () => {
-            // Periodic check
-            setInterval(updateIndicator, CHECK_INTERVAL);
+            // Create indicator element on the main page
+            const container = editor.getContainer();
+            if (!container) return;
 
-            // Connection monitor
-            window.addEventListener("offline", () => {
-              isOffline = true;
-              updateIndicator();
+            const indicator = document.createElement("div");
+            indicator.id = "eexam-autosave-indicator";
+            indicator.style.cssText = `
+              display: inline-block;
+              padding: 4px 12px;
+              font-family: sans-serif;
+              font-size: 10pt;
+              color: #666;
+              background: #f0f0f0;
+              border: 1px solid #d0d0d0;
+              border-radius: 4px;
+              margin-top: 4px;
+              transition: all 0.3s ease;
+            `;
+            indicator.textContent = "Nicht gespeichert";
+            container.parentNode.insertBefore(indicator, container.nextSibling);
+
+            let saveTimeout = null;
+
+            // Flash green on save
+            function showSaved() {
+              indicator.textContent = "Gespeichert";
+              indicator.style.color = "#2e7d32";
+              indicator.style.background = "#e8f5e9";
+              indicator.style.borderColor = "#a5d6a7";
+
+              if (saveTimeout) clearTimeout(saveTimeout);
+              saveTimeout = setTimeout(() => {
+                indicator.textContent = "Gespeichert";
+                indicator.style.color = "#666";
+                indicator.style.background = "#f0f0f0";
+                indicator.style.borderColor = "#d0d0d0";
+              }, 3000);
+            }
+
+            // Show unsaved on content change
+            function showUnsaved() {
+              indicator.textContent = "Nicht gespeichert";
+              indicator.style.color = "#c62828";
+              indicator.style.background = "#ffebee";
+              indicator.style.borderColor = "#ef9a9a";
+
+              if (saveTimeout) clearTimeout(saveTimeout);
+            }
+
+            // Listen for content changes
+            editor.on("input change keyup", () => {
+              showUnsaved();
             });
 
-            window.addEventListener("online", () => {
-              isOffline = false;
-              updateIndicator();
-            });
-
-            // Listen for Moodle autosave DOM changes
-            const form = editor.getContainer()?.closest("form");
+            // Listen for Moodle autosave
+            // Moodle triggers form submission events on autosave
+            const form = container.closest("form");
             if (form) {
+              // MutationObserver to watch for Moodle's autosave status
               const formObserver = new MutationObserver(() => {
                 const autosaveMsg = form.querySelector(
                   ".autosave-status, .mod_quiz-autosave-status, [data-region='autosave-status']"
@@ -102,7 +89,7 @@ var isFn = isFn || ((a) => typeof a === "function");
               });
             }
 
-            // Intercept XMLHttpRequest
+            // Also intercept XMLHttpRequest to detect AJAX autosaves
             const originalXHRSend = XMLHttpRequest.prototype.send;
             XMLHttpRequest.prototype.send = function () {
               this.addEventListener("load", function () {
@@ -119,7 +106,7 @@ var isFn = isFn || ((a) => typeof a === "function");
               return originalXHRSend.apply(this, arguments);
             };
 
-            // Intercept fetch
+            // Intercept fetch for modern Moodle
             const originalFetch = window.fetch;
             window.fetch = function () {
               const promise = originalFetch.apply(this, arguments);
@@ -137,9 +124,6 @@ var isFn = isFn || ((a) => typeof a === "function");
               }
               return promise;
             };
-
-            // Initial state
-            updateIndicator();
           });
 
           if (originalSetup && isFn(originalSetup)) {
@@ -171,8 +155,7 @@ var isFn = isFn || ((a) => typeof a === "function");
     script.addEventListener(
       "load",
       () => {
-        if (window.tinymce && isFn(window.tinymce.init))
-          patchTinyMCE(window.tinymce);
+        if (window.tinymce && isFn(window.tinymce.init)) patchTinyMCE(window.tinymce);
       },
       { once: true }
     );
