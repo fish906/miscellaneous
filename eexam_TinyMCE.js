@@ -10,6 +10,7 @@ var isFn = (a) => typeof a === "function";
     "indent outdent",
     "fullscreen",
     "print",
+    "autosave_indicator",
   ].join(" | ");
 
   const disableQuickbars = true;

@@ -18,61 +18,15 @@ var isFn = isFn || ((a) => typeof a === "function");
             const container = editor.getContainer();
             if (!container) return;
 
-            // Unique key based on the page URL and editor ID
             const backupKey =
               "eexam_backup_" +
               window.location.pathname.replace(/\W/g, "_") +
               "_" +
               editor.id;
 
-            const BACKUP_INTERVAL = 10000; // 10 seconds
+            const BACKUP_INTERVAL = 10000;
+            const MAX_AGE = 2 * 60 * 60 * 1000; // 2 hours
             let lastBackupContent = "";
-
-            // --- Indicator ---
-            let indicator = document.getElementById("eexam-autosave-indicator");
-            if (!indicator) {
-              indicator = document.createElement("div");
-              indicator.id = "eexam-backup-indicator";
-              indicator.style.cssText = `
-                display: inline-block;
-                padding: 4px 12px;
-                font-family: sans-serif;
-                font-size: 10pt;
-                color: #666;
-                background: #f0f0f0;
-                border: 1px solid #d0d0d0;
-                border-radius: 4px;
-                margin-top: 4px;
-                margin-left: 8px;
-              `;
-              container.parentNode.insertBefore(
-                indicator,
-                container.nextSibling
-              );
-            }
-
-            function flashBackupStatus(message, type) {
-              indicator.textContent = message;
-              if (type === "success") {
-                indicator.style.color = "#1565c0";
-                indicator.style.background = "#e3f2fd";
-                indicator.style.borderColor = "#90caf9";
-              } else if (type === "warning") {
-                indicator.style.color = "#e65100";
-                indicator.style.background = "#fff3e0";
-                indicator.style.borderColor = "#ffcc80";
-              } else if (type === "error") {
-                indicator.style.color = "#c62828";
-                indicator.style.background = "#ffebee";
-                indicator.style.borderColor = "#ef9a9a";
-              }
-
-              setTimeout(() => {
-                indicator.style.color = "#666";
-                indicator.style.background = "#f0f0f0";
-                indicator.style.borderColor = "#d0d0d0";
-              }, 3000);
-            }
 
             // --- Save backup ---
             function saveBackup() {
@@ -101,7 +55,6 @@ var isFn = isFn || ((a) => typeof a === "function");
                 const backup = JSON.parse(stored);
                 const currentContent = editor.getContent();
 
-                // Only offer restore if backup has content and editor is empty or has less content
                 if (
                   !backup.content ||
                   backup.content.trim().length <=
@@ -110,9 +63,8 @@ var isFn = isFn || ((a) => typeof a === "function");
                   return;
 
                 const age = Date.now() - backup.timestamp;
-                const maxAge = 24 * 60 * 60 * 1000; // 24 hours
 
-                if (age > maxAge) {
+                if (age > MAX_AGE) {
                   localStorage.removeItem(backupKey);
                   return;
                 }
@@ -128,7 +80,6 @@ var isFn = isFn || ((a) => typeof a === "function");
                     hours === 1 ? "1 Stunde" : `${hours} Stunden`;
                 }
 
-                // Show restore bar
                 const restoreBar = document.createElement("div");
                 restoreBar.style.cssText = `
                   padding: 10px 16px;
@@ -178,19 +129,19 @@ var isFn = isFn || ((a) => typeof a === "function");
                 `;
 
                 restoreBtn.addEventListener("click", () => {
-                  editor.setContent(backup.content);
-                  lastBackupContent = backup.content;
-                  restoreBar.remove();
-                  flashBackupStatus(
-                    "Backup wiederhergestellt",
-                    "success"
+                  const confirmed = confirm(
+                    "Möchten Sie das lokale Backup wirklich wiederherstellen? Der aktuelle Inhalt wird überschrieben."
                   );
+                  if (confirmed) {
+                    editor.setContent(backup.content);
+                    lastBackupContent = backup.content;
+                    restoreBar.remove();
+                  }
                 });
 
                 dismissBtn.addEventListener("click", () => {
                   localStorage.removeItem(backupKey);
                   restoreBar.remove();
-                  flashBackupStatus("Backup verworfen", "warning");
                 });
 
                 btnGroup.appendChild(restoreBtn);
@@ -207,32 +158,10 @@ var isFn = isFn || ((a) => typeof a === "function");
               }
             }
 
-            // --- Connection monitor ---
-            function onOffline() {
-              flashBackupStatus(
-                "Keine Internetverbindung — lokales Backup aktiv",
-                "error"
-              );
-            }
-
-            function onOnline() {
-              flashBackupStatus(
-                "Verbindung wiederhergestellt",
-                "success"
-              );
-            }
-
-            window.addEventListener("offline", onOffline);
-            window.addEventListener("online", onOnline);
-
             // --- Start ---
             checkForBackup();
             setInterval(saveBackup, BACKUP_INTERVAL);
-
-            // Save on every significant change too
             editor.on("change", saveBackup);
-
-            // Save before page unload
             window.addEventListener("beforeunload", saveBackup);
           });
 
