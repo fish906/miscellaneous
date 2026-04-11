@@ -28,6 +28,8 @@ var isFn = (a) => typeof a === "function";
         toolbar,
         font_size_formats: "11pt 12pt 13pt 14pt",
         custom_colors: false,
+        list_indent_on_tab: false,
+        text_patterns: false,
         ...(disableQuickbars && { quickbars_selection_toolbar: "" }),
         ...(disableMenubar && { menubar: false }),
       };
